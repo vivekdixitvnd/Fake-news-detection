@@ -2,7 +2,7 @@
 async function checkNews() {
   const newsText = document.getElementById('newsInput').value;
 
-  const res = await fetch('http://127.0.0.1:5000/predict', {
+  const res = await fetch('https://fake-news-detection-dii2.onrender.com/predict', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
