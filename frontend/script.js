@@ -1,16 +1,25 @@
-
 async function checkNews() {
   const newsText = document.getElementById('newsInput').value;
 
-  const res = await fetch('http://127.0.0.1:5000/predict', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ text: newsText })
-  });
+  try {
+    const res = await fetch('https://fake-news-detection-71hi.onrender.com/predict', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ text: newsText })
+    });
 
-  const data = await res.json();
-  document.getElementById('result').innerText =
-    "Prediction: " + data.result + " (Confidence: " + data.confidence + "%)";
+    const data = await res.json();
+
+    if (data.error) {
+      document.getElementById('result').innerText = "Error: " + data.error;
+    } else {
+      document.getElementById('result').innerText =
+        "Prediction: " + data.result + " (Confidence: " + data.confidence + "%)";
+    }
+  } catch (error) {
+    document.getElementById('result').innerText = "Unexpected Error Occurred!";
+    console.error(error);
+  }
 }
