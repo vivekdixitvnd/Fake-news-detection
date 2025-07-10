@@ -1,13 +1,13 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
 import requests
 import os
 from smart_checker import is_text_suspicious
+from flask_cors import CORS
 
 app = Flask(__name__)
 
-# ✅ Allow only your frontend
-CORS(app, resources={r"/predict": {"origins": "https://vivek-dixit-fake-news-detection.onrender.com"}})
+# ✅ Allow specific origin globally for all routes (safer and simpler)
+CORS(app, origins=['https://vivek-dixit-fake-news-detection.onrender.com'])
 
 API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN")
@@ -19,11 +19,11 @@ def query_huggingface(payload):
         raise Exception(f"Huggingface API error: {response.status_code} - {response.text}")
     return response.json()
 
-@app.route('/predict', methods=['POST', 'OPTIONS'])   # ✅ Include OPTIONS
+@app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
     if request.method == 'OPTIONS':
-        # ✅ Handle preflight request manually
-        response = jsonify({'message': 'CORS preflight successful'})
+        # ✅ Preflight response
+        response = jsonify({'status': 'OK'})
         response.headers.add('Access-Control-Allow-Origin', 'https://vivek-dixit-fake-news-detection.onrender.com')
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
@@ -47,14 +47,12 @@ def predict():
             prediction = result["labels"][0]
             confidence = round(result["scores"][0] * 100, 2)
 
-        response = jsonify({
-            'result': prediction.capitalize(),
-            'confidence': confidence
-        })
+        response = jsonify({'result': prediction.capitalize(), 'confidence': confidence})
         response.headers.add('Access-Control-Allow-Origin', 'https://vivek-dixit-fake-news-detection.onrender.com')
-        return response
+        return response, 200
+
     except Exception as e:
-        response = jsonify({"error": str(e)})
+        response = jsonify({'error': str(e)})
         response.headers.add('Access-Control-Allow-Origin', 'https://vivek-dixit-fake-news-detection.onrender.com')
         return response, 500
 
