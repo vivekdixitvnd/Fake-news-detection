@@ -1,37 +1,51 @@
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import requests
 import os
 from smart_checker import is_text_suspicious
-from flask_cors import CORS
 
 app = Flask(__name__)
 
-# ✅ Allow specific origin globally for all routes (safer and simpler)
-CORS(app, origins=['https://vivek-dixit-fake-news-detection.onrender.com'])
+# Enable CORS for specific origin
+CORS(app, origins=["https://vivek-dixit-fake-news-detection.onrender.com"])
 
 API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN")
+
+if not HUGGINGFACE_API_TOKEN:
+    raise EnvironmentError("HUGGINGFACE_API_TOKEN not set in environment variables")
+
 headers = {"Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"}
 
+
 def query_huggingface(payload):
-    response = requests.post(API_URL, headers=headers, json=payload)
-    if response.status_code != 200:
-        raise Exception(f"Huggingface API error: {response.status_code} - {response.text}")
-    return response.json()
+    try:
+        response = requests.post(API_URL, headers=headers, json=payload, timeout=15)
+        if response.status_code != 200:
+            raise Exception(f"Huggingface API error: {response.status_code} - {response.text}")
 
-@app.route('/predict', methods=['POST', 'OPTIONS'])
+        result = response.json()
+
+        if "labels" not in result or "scores" not in result:
+            raise Exception(f"Invalid response format: {result}")
+
+        return result
+
+    except requests.exceptions.Timeout:
+        raise Exception("Hugging Face API request timed out")
+
+    except Exception as e:
+        raise e
+
+
+@app.route('/predict', methods=['POST'])
 def predict():
-    if request.method == 'OPTIONS':
-        # ✅ Preflight response
-        response = jsonify({'status': 'OK'})
-        response.headers.add('Access-Control-Allow-Origin', 'https://vivek-dixit-fake-news-detection.onrender.com')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
-        return response, 200
-
     try:
         data = request.get_json()
         text = data.get('text', '')
+
+        if not text:
+            raise ValueError("No text provided")
 
         if is_text_suspicious(text):
             prediction = "Fake"
@@ -43,18 +57,18 @@ def predict():
                     "candidate_labels": ["real", "fake"]
                 }
             }
+
             result = query_huggingface(payload)
             prediction = result["labels"][0]
             confidence = round(result["scores"][0] * 100, 2)
 
-        response = jsonify({'result': prediction.capitalize(), 'confidence': confidence})
-        response.headers.add('Access-Control-Allow-Origin', 'https://vivek-dixit-fake-news-detection.onrender.com')
-        return response, 200
+        return jsonify({'result': prediction.capitalize(), 'confidence': confidence}), 200
 
     except Exception as e:
-        response = jsonify({'error': str(e)})
-        response.headers.add('Access-Control-Allow-Origin', 'https://vivek-dixit-fake-news-detection.onrender.com')
-        return response, 500
+        print(f"Error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(debug=False)
+
