@@ -6,40 +6,24 @@ from smart_checker import is_text_suspicious
 
 app = Flask(__name__)
 
-# Enable CORS for specific origin
-CORS(app, origins=["https://vivek-dixit-fake-news-detection.onrender.com"])
+CORS(app, origins=["https://vivek-dixit-fake-news-detection.onrender.com"], supports_credentials=True, methods=["GET", "POST", "OPTIONS"])
 
 API_URL = "https://api-inference.huggingface.co/models/facebook/bart-large-mnli"
 HUGGINGFACE_API_TOKEN = os.environ.get("HUGGINGFACE_API_TOKEN")
 
-if not HUGGINGFACE_API_TOKEN:
-    raise EnvironmentError("HUGGINGFACE_API_TOKEN not set in environment variables")
-
 headers = {"Authorization": f"Bearer {HUGGINGFACE_API_TOKEN}"}
 
-
 def query_huggingface(payload):
-    try:
-        response = requests.post(API_URL, headers=headers, json=payload, timeout=15)
-        if response.status_code != 200:
-            raise Exception(f"Huggingface API error: {response.status_code} - {response.text}")
+    response = requests.post(API_URL, headers=headers, json=payload, timeout=15)
+    response.raise_for_status()
+    result = response.json()
+    return result
 
-        result = response.json()
-
-        if "labels" not in result or "scores" not in result:
-            raise Exception(f"Invalid response format: {result}")
-
-        return result
-
-    except requests.exceptions.Timeout:
-        raise Exception("Hugging Face API request timed out")
-
-    except Exception as e:
-        raise e
-
-
-@app.route('/predict', methods=['POST'])
+@app.route('/predict', methods=['POST', 'OPTIONS'])
 def predict():
+    if request.method == 'OPTIONS':
+        return '', 204  # handle preflight
+
     try:
         data = request.get_json()
         text = data.get('text', '')
@@ -71,4 +55,3 @@ def predict():
 
 if __name__ == '__main__':
     app.run(debug=False)
-
